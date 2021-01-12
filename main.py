@@ -1,6 +1,7 @@
 import os
 import time
 import threading
+import multiprocessing
 
 from kivy.app import App
 from kivy.lang import Builder
@@ -21,7 +22,6 @@ from kivy.uix.label import Label
 
 
 class Alert(Popup):
-
     def __init__(self, title, text):
         super(Alert, self).__init__()
         content = AnchorLayout(anchor_x='center', anchor_y='bottom')
@@ -42,7 +42,6 @@ class Alert(Popup):
         ok_button.bind(on_press=popup.dismiss)
         popup.open()
 
-
 class HomeScreen(Screen):
     video_url_textfield = ObjectProperty(None)
 
@@ -50,11 +49,23 @@ class HomeScreen(Screen):
         print('hello world')
 
     def download_btn_onclick(self):
-        print('button clicked')
         url = self.video_url_textfield.text
-        self.download_audio(url)
+        # try:
+        #     p = multiprocessing.Process(target=self.download_audio(url))
+        #     p.daemon = True
+        #     p.start()
+        #     p.join()
+        # except Exception as err:
+        #     print(err)
+
+
+        threading.Thread(target=self.download_audio, args=(url,)).start()
+
+
 
     def download_audio(self, url):
+        print("in download audio")
+        print(url)
         try:
             ydl_opts = {
                 'format': 'best',
@@ -62,6 +73,7 @@ class HomeScreen(Screen):
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                 }],
+                'duration': 120,
                 'outtmpl': 'download/%(title)s.%(ext)s',
             }
             youtube_downloader = YoutubeDL(ydl_opts)
@@ -116,7 +128,6 @@ class PodcastScreen(Screen):
                 current_audio_path = self.sound.source.split('\\')
                 current_audio = current_audio_path[len(current_audio_path)-1]
                 if current_audio == list_item.text:
-                    print('helloworld')
                     self.sound.play()
                     self.sound.seek(self.current_pos)
                 else:
