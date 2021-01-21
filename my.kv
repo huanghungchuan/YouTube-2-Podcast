@@ -1,6 +1,5 @@
-BoxLayout:
-    podcast_screen: podcast_screen
-    orientation:'vertical'
+<BL>:
+    orientation: "vertical"
 
     MDToolbar:
         title: 'Youtube 2 Podcast'
@@ -15,27 +14,45 @@ BoxLayout:
             text: 'Home'
             icon: 'home'
 
-            HomeScreen:
-                name: 'home_screen'
+            BoxLayout:
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: dp(10)
+                pos_hint: {"center_x": .5, "center_y": .5}
+                MDTextField:
+                    id: video_url_textfield
+                    size_hint: 0.5, None
+                    pos_hint: {"center_x": .5, "center_y": .5}
+                    helper_text: 'Please copy the YouTube video url here.'
+                    helper_text_mode: "persistent"
+                    focus: True
+                MDTextButton:
+                    id: download_btn
+                    text: 'Download'
+                    pos_hint: {"center_x": .5}
+                    on_release: root.download_btn_onclick()
 
         MDBottomNavigationItem:
             name: 'download_screen_nav'
             text: 'Download'
             icon: 'download'
 
-            MDLabel:
-                text: 'Download'
-                halign: 'center'
+            BoxLayout:
+                MDLabel:
+                    text: 'Download'
+                    halign: 'center'
 
         MDBottomNavigationItem:
-            on_tab_release: podcast_screen.create_list()
+            on_tab_release: root.create_podcast_list()
             name: 'podcast_screen_nav'
             text: 'Podcasts'
             icon: 'file-music'
 
-            PodcastScreen:
-                id: podcast_screen
-                name: 'podcast_screen'
+            BoxLayout:
+                ScrollView:
+                    MDList:
+                        id: podcast_list
 
         MDBottomNavigationItem:
             name: 'play_screen_nav'
@@ -43,37 +60,6 @@ BoxLayout:
             icon: 'play-circle'
 
             MDLabel:
+                id: play_screen_label
                 text: 'Play'
                 halign: 'center'
-
-<HomeScreen>
-    video_url_textfield: video_url_textfield
-
-    BoxLayout:
-        orientation: "vertical"
-        size_hint_y: None
-        height: self.minimum_height
-        spacing: dp(10)
-        pos_hint: {"center_x": .5, "center_y": .5}
-
-        MDTextField:
-            id: video_url_textfield
-            size_hint: 0.5, None
-            pos_hint: {"center_x": .5, "center_y": .5}
-            helper_text: 'Please copy the YouTube video url here.'
-            helper_text_mode: "persistent"
-            focus: True
-        MDTextButton:
-            id: download_btn
-            text: 'Download'
-            pos_hint: {"center_x": .5}
-            on_release: root.download_btn_onclick()
-
-
-<PodcastScreen>
-    podcast_list: podcast_list
-    BoxLayout:
-        ScrollView:
-            MDList:
-                id: podcast_list
-
