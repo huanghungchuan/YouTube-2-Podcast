@@ -1,5 +1,6 @@
 import os
-import threading
+
+import enum
 
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.popup import Popup
@@ -11,23 +12,17 @@ from kivy.core.audio import SoundLoader
 from kivy.core.window import Window
 from kivy.uix.label import Label
 from kivymd.uix.button import Button
+from threading import Thread
 from youtube_dl import YoutubeDL
 
 
 class MyApp(MDApp):
     def __init__(self, **kwargs):
-        self.title = "KivyMD Examples - Bottom Navigation"
+        self.title = "Youtube 2 Podcast"
         super().__init__(**kwargs)
 
     def build(self):
         return BL()
-
-class ListItemWithPercentage(TwoLineRightIconListItem):
-    '''Custom list item.'''
-
-
-class RightLabel(IRightBody, MDLabel):
-    '''Custom right container.'''
 
 
 class DownloadAlert(Popup):
@@ -51,6 +46,27 @@ class DownloadAlert(Popup):
         ok_button.bind(on_press=popup.dismiss)
         popup.open()
 
+class ListItemWithPercentage(TwoLineRightIconListItem):
+    '''Custom list item.'''
+
+
+class RightLabel(IRightBody, MDLabel):
+    '''Custom right container.'''
+
+
+class DownloadStatus(enum.Enum):
+    Downloading = 1
+    Processing = 2
+    Finish = 3
+    Error = 4
+
+
+class DownloadingPodcast:
+    def __init__(self, title, download_status):
+        self.title = title
+        self.download_status = download_status
+        self.download_percentage = '0%'
+
 
 class BL(MDBoxLayout):
     sound = SoundLoader.load('')
@@ -60,10 +76,28 @@ class BL(MDBoxLayout):
 
     def download_btn_onclick(self):
         url = self.ids.video_url_textfield.text
-        threading.Thread(target=self.download_audio, args=(url,)).start()
+        Thread(target=self.download_audio, args=(url,)).start()
+
+    def callable_hook(self, response):
+        filename = response['filename'].split('\\')
+        title = filename[len(filename) - 1]
+        title = title[:-4]  # remove .mp4
+        for downloading_podcast in self.downloading_podcast_list:
+            if downloading_podcast.title == title:
+                current_downloading_podcast = downloading_podcast
+            break
+        if response['status'] == 'downloading':
+            current_downloading_podcast.download_percentage = response['_percent_str']
+            self.create_download_list()
+        if response['status'] == 'finished':
+            current_downloading_podcast.download_status = DownloadStatus.Finish
+            current_downloading_podcast.download_percentage = ''
+            self.create_download_list()
+            print('end of download')
+        if response['status'] == 'error':
+            pass
 
     def download_audio(self, url):
-        print(url)
         try:
             ydl_opts = {
                 'format': 'best',
@@ -73,21 +107,39 @@ class BL(MDBoxLayout):
                 }],
                 'duration': 120,
                 'outtmpl': 'download/%(title)s.%(ext)s',
+                'progress_hooks': [self.callable_hook],
             }
             youtube_downloader = YoutubeDL(ydl_opts)
-            youtube_downloader.download([url])
             video_info = youtube_downloader.extract_info(url, download=False)
-            print(video_info.get('title', None))
+            current_downloading_podcast = DownloadingPodcast(video_info.get('title', None), DownloadStatus.Downloading)
+            self.downloading_podcast_list.append(current_downloading_podcast)
+            self.create_download_list()
+            youtube_downloader.download([url])
         except:
             DownloadAlert(title='Invalid URL', text='Failed to download the audio from the given url, please try again.')
 
-    def create_podcast_list(self):
-        podcast_list = self.ids.podcast_list
+    def create_download_list(self):
+        download_list = self.ids.download_list
+        self.remove_children_from_list_widget(download_list)
+        for downloading_podcast in self.downloading_podcast_list:
+            title = downloading_podcast.title
+            status = downloading_podcast.download_status.name
+            list_item = ListItemWithPercentage(text=title, secondary_text=status)
+            if downloading_podcast.download_status == DownloadStatus.Downloading:
+                list_item.ids.download_status_progress.text = downloading_podcast.download_percentage
+            download_list.add_widget(list_item)
+
+    def remove_children_from_list_widget(self, mdList):
         child_list = []
-        for child in podcast_list.children:
+        for child in mdList.children:
             child_list.append(child)
         for child in child_list:
-            podcast_list.remove_widget(child)
+            mdList.remove_widget(child)
+
+
+    def create_podcast_list(self):
+        podcast_list = self.ids.podcast_list
+        self.remove_children_from_list_widget(podcast_list)
         arr = os.listdir('download/')
         for filename in arr:
             if filename.endswith('.mp3'):
