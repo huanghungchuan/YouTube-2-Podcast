@@ -39,9 +39,9 @@
             icon: 'download'
 
             BoxLayout:
-                MDLabel:
-                    text: 'Download'
-                    halign: 'center'
+                ScrollView:
+                    MDList:
+                        id: download_list
 
         MDBottomNavigationItem:
             on_tab_release: root.create_podcast_list()
@@ -63,3 +63,8 @@
                 id: play_screen_label
                 text: 'Play'
                 halign: 'center'
+
+
+<ListItemWithPercentage>:
+    RightLabel:
+        id: download_status_progress

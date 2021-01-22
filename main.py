@@ -5,7 +5,8 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.popup import Popup
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.list import IconRightWidget, OneLineRightIconListItem
+from kivymd.uix.label import MDLabel
+from kivymd.uix.list import IconRightWidget, OneLineRightIconListItem, TwoLineRightIconListItem, IRightBody
 from kivy.core.audio import SoundLoader
 from kivy.core.window import Window
 from kivy.uix.label import Label
@@ -20,6 +21,13 @@ class MyApp(MDApp):
 
     def build(self):
         return BL()
+
+class ListItemWithPercentage(TwoLineRightIconListItem):
+    '''Custom list item.'''
+
+
+class RightLabel(IRightBody, MDLabel):
+    '''Custom right container.'''
 
 
 class DownloadAlert(Popup):
