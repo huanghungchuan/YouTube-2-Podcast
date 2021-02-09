@@ -59,10 +59,30 @@
             text: 'Playing'
             icon: 'play-circle'
 
-            MDLabel:
-                id: play_screen_label
-                text: 'Play'
-                halign: 'center'
+            BoxLayout:
+                orientation: "vertical"
+                BoxLayout:
+                    size_hint_y: 0.7
+                    MDLabel:
+                        id: play_screen_podcast_name
+                        text: ''
+                        theme_text_color: "Primary"
+                        font_style: "H4"
+                        halign:'center'
+                BoxLayout:
+                    id: play_screen_slider_layout
+                    size_hint_y: 0.05
+
+                BoxLayout:
+                    orientation: "vertical"
+                    size_hint_y: 0.25
+                    MDFloatingActionButton:
+                        id: play_screen_play_button
+                        icon: 'play-circle-outline'
+                        pos_hint: {"center_x": .5, "center_y": .5}
+                        on_release: root.play_btn_onclick()
+
+
 
 <ListItemWithPercentage>:
     RightLabel:
