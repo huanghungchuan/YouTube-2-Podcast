@@ -1,7 +1,12 @@
 import os
 
+import bandfilter
 import enum
+import normalizer
+import re
+import vad
 
+import background_separator
 from kivy.clock import Clock
 from kivy.core.audio import SoundLoader
 from kivy.core.window import Window
@@ -49,6 +54,7 @@ class DownloadAlert(Popup):
         ok_button.bind(on_press=popup.dismiss)
         popup.open()
 
+
 class ListItemWithPercentage(TwoLineRightIconListItem):
     '''Custom list item.'''
 
@@ -59,9 +65,12 @@ class RightLabel(IRightBody, MDLabel):
 
 class DownloadStatus(enum.Enum):
     Downloading = 1
-    Processing = 2
-    Finish = 3
-    Error = 4
+    Separating_Background = 2
+    Removing_Silence = 3
+    Filter_Noise = 4
+    Normalizing_Volume = 5
+    Finish = 6
+    Error = 7
 
 
 class DownloadingPodcast:
@@ -73,6 +82,7 @@ class DownloadingPodcast:
 
 class AudioSlider(MDSlider):
     sound_loader = ObjectProperty(None)
+
     def on_touch_up(self, touch):
         if self.sound_loader is None:
             print('None')
@@ -93,7 +103,8 @@ class BL(MDBoxLayout):
         self.sound = SoundLoader.load('')
         self.downloading_podcast_list = []
         self.play_screen_slider_layout = self.ids.play_screen_slider_layout
-        self.slider = AudioSlider(min=0, max=0, value=0, sound_loader=self.sound, pos_hint={'center_x': 0.5, 'center_y': 0.5})
+        self.slider = AudioSlider(min=0, max=0, value=0, sound_loader=self.sound,
+                                  pos_hint={'center_x': 0.5, 'center_y': 0.5})
         self.slider.hint = False
         self.play_screen_slider_layout.add_widget(self.slider)
         self.slider_updater = None
@@ -102,12 +113,7 @@ class BL(MDBoxLayout):
         self.STOP_ICON = 'stop-circle-outline'
         self.PLAY_ICON = 'play-circle-outline'
         self.PAUSE_ICON = 'pause-circle-outline'
-
-
-
-    def download_btn_onclick(self):
-        url = self.ids.video_url_textfield.text
-        Thread(target=self.download_audio, args=(url,)).start()
+        self.separator = None
 
     def play_btn_onclick(self):
         if self.sound is None:
@@ -120,25 +126,37 @@ class BL(MDBoxLayout):
             self.sound.play()
             self.sound.seek(self.slider.value)
 
+    def download_btn_onclick(self):
+        url = self.ids.video_url_textfield.text
+        Thread(target=self.download_podcast, args=(url,)).start()
 
-    def callable_hook(self, response):
-        filename = response['filename'].split('\\')
-        title = filename[len(filename) - 1]
-        title = title[:-4]  # remove .mp4
-        for downloading_podcast in self.downloading_podcast_list:
-            if downloading_podcast.title == title:
-                current_downloading_podcast = downloading_podcast
-            break
-        if response['status'] == 'downloading':
-            current_downloading_podcast.download_percentage = response['_percent_str']
-            self.create_download_list()
-        if response['status'] == 'finished':
-            current_downloading_podcast.download_status = DownloadStatus.Finish
-            current_downloading_podcast.download_percentage = ''
-            self.create_download_list()
-            print('end of download')
-        if response['status'] == 'error':
-            pass
+    def download_podcast(self, url):
+        current_downloading_podcast = self.download_audio(url)
+
+        current_downloading_podcast.download_status = DownloadStatus.Separating_Background
+        self.create_download_list()
+        background_separator.main(
+            ['-input_path', 'download/' + current_downloading_podcast.title + '.mp3', '-output_directory',
+             'separated/'])
+
+        current_downloading_podcast.download_status = DownloadStatus.Removing_Silence
+        self.create_podcast_list()
+        vad.generate_solo_audio('separated/' + current_downloading_podcast.title + '/vocals.wav',
+                                'unsilenced/' + current_downloading_podcast.title + '.wav', 3)
+
+        current_downloading_podcast.download_status = DownloadStatus.Normalizing_Volume
+        self.create_podcast_list()
+        normalizer.normalize_audio_with_target_dBFS('unsilenced/' + current_downloading_podcast.title + '.wav',
+                                                    'normalized/' + current_downloading_podcast.title + '.wav', 'wav',
+                                                    -20.0)
+
+        current_downloading_podcast.download_status = DownloadStatus.Filter_Noise
+        self.create_podcast_list()
+        bandfilter.filter_noise('normalized/' + current_downloading_podcast.title + '.wav',
+                                'denoised/' + current_downloading_podcast.title + '.wav', 100, 6000)
+
+        current_downloading_podcast.download_status = DownloadStatus.Finish
+        self.create_podcast_list()
 
     def download_audio(self, url):
         try:
@@ -154,12 +172,54 @@ class BL(MDBoxLayout):
             }
             youtube_downloader = YoutubeDL(ydl_opts)
             video_info = youtube_downloader.extract_info(url, download=False)
-            current_downloading_podcast = DownloadingPodcast(video_info.get('title', None), DownloadStatus.Downloading)
+            video_title = self.remove_special_char(video_info.get('title', None))
+
+            ydl_opts = {
+                'format': 'best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                }],
+                'duration': 120,
+                'outtmpl': 'download/' + video_title + '.%(ext)s',
+                'progress_hooks': [self.callable_hook],
+            }
+            youtube_downloader = YoutubeDL(ydl_opts)
+
+            current_downloading_podcast = DownloadingPodcast(video_title, DownloadStatus.Downloading)
             self.downloading_podcast_list.append(current_downloading_podcast)
             self.create_download_list()
             youtube_downloader.download([url])
-        except:
-            DownloadAlert(title='Invalid URL', text='Failed to download the audio from the given url, please try again.')
+            return current_downloading_podcast
+        except Exception as e:
+            print(e)
+            DownloadAlert(title='Invalid URL',
+                          text='Failed to download the audio from the given url, please try again.')
+
+    def remove_special_char(self, text):
+        return re.sub('[^A-Za-z0-9]+', '', text)
+
+    def callable_hook(self, response):
+        filename = response['filename'].split('\\')
+        title = filename[len(filename) - 1]
+        title = title[:-4]  # remove .mp4
+        current_downloading_podcast = None
+        for downloading_podcast in self.downloading_podcast_list:
+            formated_downloading_podcast_title = self.remove_special_char(downloading_podcast.title)
+            formated_title = self.remove_special_char(title)
+            if formated_downloading_podcast_title == formated_title:
+                current_downloading_podcast = downloading_podcast
+            break
+        if current_downloading_podcast is not None:
+            if response['status'] == 'downloading':
+                current_downloading_podcast.download_percentage = response['_percent_str']
+                self.create_download_list()
+            if response['status'] == 'finished':
+                current_downloading_podcast.download_status = DownloadStatus.Finish
+                current_downloading_podcast.download_percentage = ''
+                self.create_download_list()
+            if response['status'] == 'error':
+                pass
 
     def create_download_list(self):
         download_list = self.ids.download_list
@@ -178,7 +238,6 @@ class BL(MDBoxLayout):
             child_list.append(child)
         for child in child_list:
             mdList.remove_widget(child)
-
 
     def create_podcast_list(self):
         ''' Create the podcast list on Podcast Screen
@@ -248,8 +307,6 @@ class BL(MDBoxLayout):
                             layout.add_widget(icon)
         self.create_audio_slider()
 
-
-
     def create_audio_slider(self):
         ''' Create a new audio slider on Play Screen for the current playback.
 
@@ -259,9 +316,11 @@ class BL(MDBoxLayout):
         '''
         self.play_screen_slider_layout.remove_widget(self.slider)
         if self.sound is None:
-            self.slider = AudioSlider(min=0, max=0, value=0, sound_loader=self.sound, pos_hint={'center_x': 0.5, 'center_y': 0.5})
+            self.slider = AudioSlider(min=0, max=0, value=0, sound_loader=self.sound,
+                                      pos_hint={'center_x': 0.5, 'center_y': 0.5})
         else:
-            self.slider = AudioSlider(min=0, max=self.sound.length, value=0, sound_loader=self.sound, pos_hint={'center_x': 0.5, 'center_y': 0.5})
+            self.slider = AudioSlider(min=0, max=self.sound.length, value=0, sound_loader=self.sound,
+                                      pos_hint={'center_x': 0.5, 'center_y': 0.5})
             self.slider_updater = Clock.schedule_interval(self.slider_update_func, 1)
         self.slider.hint = False
         self.play_screen_slider_layout.add_widget(self.slider)
