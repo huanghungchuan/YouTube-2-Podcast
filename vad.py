@@ -220,7 +220,7 @@ def vad_collector(sample_rate, frame_duration_ms,
     if voiced_frames:
         yield b''.join([f.bytes for f in voiced_frames])
 
-def generate_solo_audio(podcast_name, aggressiveness):
+def generate_solo_audio(input_path, output_path, aggressiveness):
     ''' Remove the silence audio segments from the audio file.
 
     From vocals.wav of the given podcast name, convert the audio file:
@@ -231,12 +231,13 @@ def generate_solo_audio(podcast_name, aggressiveness):
     The new audio file will be written into 'non-silenced' directory.
 
     Args:
-        podcast_name (str): The name of the podcast.
+        input_path (str): The path to the original audio file.
+        output_path (str): The path to the new audio file.
         aggressiveness (int): The aggressiveness of the silence detector. This must be either 0, 1, 2 or 3, while 3 is
                               the most aggressive mode.
     '''
-    original_path = 'progressed/' + podcast_name + '/vocals.wav'
-    output_path = 'non-silenced/' + podcast_name + '.wav'
+    original_path = input_path
+    output_path = output_path
     convert_wave_to_meet_vad(original_path, output_path)
     audio, sample_rate = read_wave(output_path)
     vad = webrtcvad.Vad(aggressiveness)
