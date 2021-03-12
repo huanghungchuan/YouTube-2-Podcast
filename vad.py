@@ -10,10 +10,8 @@ from pydub import AudioSegment
 
 def read_wave(path):
     ''' Reading a wav file from the given path.
-
     Args:
         path (str): The path to the wav file.
-
     Returns:
         bytes: The wav pcm data.
         int: Sample rate
@@ -31,7 +29,6 @@ def read_wave(path):
 
 def write_wave(path, audio, sample_rate):
     """ Write a wav file
-
     Args:
         path (str): The path to the wav file.
         audio (bytes): pcm audio data.
@@ -43,12 +40,12 @@ def write_wave(path, audio, sample_rate):
         wf.setframerate(sample_rate)
         wf.writeframes(audio)
 
+
 def convert_wave_to_meet_vad(original_path, output_path):
     ''' Convert the wav data to the formats that meets webrtc requirements:
     1. sample rate reformat to either [8000, 16000, 32000, 48000]
     2. Convert to mono audio
     3. Convert to 16-bits format
-
     Args:
         original_path (str): Path to original wav file.
         output_path (str): Path to output wav file.
@@ -57,22 +54,20 @@ def convert_wave_to_meet_vad(original_path, output_path):
     convert_to_mono(output_path)
     convert_to_16bit(output_path)
 
+
 def convert_to_16bit(path):
     ''' Convert the wav audio file to 16-bits format.
-
     This will overwrite the given file.
-
     Args:
         path (str): Path to the audio file.
     '''
-    data,  samplerate = soundfile.read(path)
+    data, samplerate = soundfile.read(path)
     soundfile.write(path, data, samplerate, subtype='PCM_16')
+
 
 def convert_to_mono(path):
     ''' Convert the wav file to monophonic records.
-
     This will overwrite the given file.
-
     Args:
         path (str): Path to the audio file.
     '''
@@ -82,12 +77,11 @@ def convert_to_mono(path):
     sound.export(path, format="wav")
     print('finish convert to mono')
 
+
 def resample_wave(original_path, output_path):
     ''' Resample the wav audio to the sample rate that will meet the webrtcvad requirement.
-
     Use Librosa to convert the original sample rate to the closest of either [8000, 16000, 32000, 48000].
     The new audio will be written to the given output path.
-
     Args:
         original_path (str): Path to the original wav file.
         output_path (str): Path to the new wav file.
@@ -112,13 +106,12 @@ def resample_wave(original_path, output_path):
 
 class Frame(object):
     ''' This is a class used for separating the audio data into smaller pieces of data.
-
     Args:
         bytes (bytes): pcm audio data.
         timestamp (float): The starting timestamp of the original audio.
         duration (float): The duration of this frame.
-
     '''
+
     def __init__(self, bytes, timestamp, duration):
         self.bytes = bytes
         self.timestamp = timestamp
@@ -127,16 +120,13 @@ class Frame(object):
 
 def frame_generator(frame_duration_ms, audio, sample_rate):
     """ Generates audio frames from PCM audio data.
-
     Separate the audio data into frames that contains the pcm audio data of given duration.
     To meet the requirement of webrtc, the duration must be either 10, 20 or 30 milliseconds,
     sample rate must be either 8000, 16000, 32000 or 48000.
-
     Args:
         frame_duration_ms (int): The duration of each frame in milliseconds.
         audio (bytes): The pcm audio data that will be separated into frames.
         sample_rate (int): The sample rate of the given audio.
-
     Yields:
         Frame: The Frames created after separating the audio data.
     """
@@ -153,20 +143,17 @@ def frame_generator(frame_duration_ms, audio, sample_rate):
 def vad_collector(sample_rate, frame_duration_ms,
                   padding_duration_ms, vad, frames):
     ''' Filter out the silenced audio frames.
-
     Using Webrtcvad to detect whether a given frame contains voice.
     Using sliding-window algorithm to pass the frames to Vad.
     Once there are 90% continuous frames that are detected
     as unsilenced, it will start yielding the audio data from the frames.
     Once there are over 90% of continuous frames that are detected as silenced, it will stop yielding the audio data.
-
     Args:
         sample_rate (int): The sample rate of the audio data.
         frame_duration_ms (int): The audio duration of each frame.
         padding_duration_ms (int): The amount of padding frames.
         vad (webrtcvad.Vad): An instance of Vad.
         frames (list(Frame)): A list of frames that were generated from a wav audio.
-
     Yields:
          bytes: PCM audio data.
     '''
@@ -220,14 +207,13 @@ def vad_collector(sample_rate, frame_duration_ms,
     if voiced_frames:
         yield b''.join([f.bytes for f in voiced_frames])
 
+
 def generate_solo_audio(input_path, output_path, aggressiveness):
     ''' Remove the silence audio segments from the audio file.
-
     From vocals.wav of the given podcast name, convert the audio file:
     1. to monophonic sound
     2. the sample rate to one of [8000, 16000, 32000, 48000]
     3. to 16-bits format
-
     The new audio file will be written into 'non-silenced' directory.
 
     Args:
