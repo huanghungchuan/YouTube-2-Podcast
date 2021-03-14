@@ -2,6 +2,7 @@ import numpy as np
 from scipy.signal import butter, lfilter
 from scipy.io import wavfile
 
+
 def butter_bandpass(lowcut, highcut, samplerate, order=5):
     nyq = 0.5 * samplerate
     low = lowcut / nyq
@@ -15,8 +16,10 @@ def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
     y = lfilter(b, a, data)
     return y
 
+
 def bandpass_filter(buffer, lowcut, highcut, samplerate):
     return butter_bandpass_filter(buffer, lowcut, highcut, samplerate, order=6)
+
 
 def filter_noise(input_path, output_path, lowcut, highcut):
     ''' Use band-pass filter to filter noise.
