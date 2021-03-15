@@ -51,30 +51,30 @@ def convert_wave_to_meet_vad(original_path, output_path):
         output_path (str): Path to output wav file.
     '''
     resample_wave(original_path, output_path)
-    convert_to_mono(output_path)
-    convert_to_16bit(output_path)
+    convert_to_mono(output_path, output_path)
+    convert_to_16bit(output_path, output_path)
 
 
-def convert_to_16bit(path):
+def convert_to_16bit(original_path, output_path):
     ''' Convert the wav audio file to 16-bits format.
     This will overwrite the given file.
     Args:
         path (str): Path to the audio file.
     '''
-    data, samplerate = soundfile.read(path)
-    soundfile.write(path, data, samplerate, subtype='PCM_16')
+    data, samplerate = soundfile.read(original_path)
+    soundfile.write(output_path, data, samplerate, subtype='PCM_16')
 
 
-def convert_to_mono(path):
+def convert_to_mono(original_path, output_path):
     ''' Convert the wav file to monophonic records.
     This will overwrite the given file.
     Args:
         path (str): Path to the audio file.
     '''
     print('convert to mono')
-    sound = AudioSegment.from_wav(path)
+    sound = AudioSegment.from_wav(original_path)
     sound = sound.set_channels(1)
-    sound.export(path, format="wav")
+    sound.export(output_path, format="wav")
     print('finish convert to mono')
 
 
@@ -86,22 +86,18 @@ def resample_wave(original_path, output_path):
         original_path (str): Path to the original wav file.
         output_path (str): Path to the new wav file.
     '''
-    print('resample wave')
     available_sample_rate = [8000, 16000, 32000, 48000]
     current_closest = 0
 
     data, audio_sample_rate = librosa.load(original_path)
     current_diff = audio_sample_rate
 
-    print(audio_sample_rate)
     for sr in available_sample_rate:
         if abs(sr - audio_sample_rate) < current_diff:
             current_diff = abs(sr - audio_sample_rate)
             current_closest = sr
-    print(current_closest)
     data = librosa.resample(data, audio_sample_rate, current_closest)
     librosa.output.write_wav(output_path, data, current_closest)
-    print('finish resample wave')
 
 
 class Frame(object):
